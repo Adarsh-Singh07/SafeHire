@@ -1,0 +1,38 @@
+# Virtual environment
+safehire-backend/venv/
+venv/
+.venv/
+env/
+
+# Credentials / Secrets
+.env
+.env.*
+!.env.example
+safehire-backend/.env
+safehire-backend/.env.*
+
+# Local Databases
+*.db
+*.db-journal
+safehire-backend/offershield.db
+safehire-backend/chroma_data/
+
+# Python Cache / Tests
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_cache
+safehire-backend/.pytest_cache/
+
+# Design / Product PDFs (excluded from public repository)
+*.pdf
+01_Product_Pitch.pdf
+02_Development_Plan.pdf
+03_SRS.pdf
+
+# OS Specific
+.DS_Store
+Thumbs.db
+desktop.ini
