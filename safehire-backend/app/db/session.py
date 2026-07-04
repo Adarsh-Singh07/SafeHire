@@ -22,9 +22,14 @@ async def get_db():
     async with SessionLocal() as session:
         try:
             yield session
+            # Commit any pending changes at end of request
             await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+        except Exception as exc:
+            # Always rollback on any error so the session is clean
+            try:
+                await session.rollback()
+            except Exception:
+                pass
+            raise exc
         finally:
             await session.close()
