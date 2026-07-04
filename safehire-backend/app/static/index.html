@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferShield — AI Job & Company Safety Auditor</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Glassmorphic Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Marked JS for Chatbot Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Deep Space Aurora Background Glows -->
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+                <span class="logo-text">Offer<span>Shield</span></span>
+            </div>
+            <div class="header-status">
+                <span class="status-indicator online"></span>
+                <span class="status-label">Scanner Engine Online</span>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            
+            <!-- LEFT COLUMN: INPUT CONTROLS -->
+            <section class="dashboard-panel input-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-file-invoice-dollar icon-accent"></i>
+                    <h2>New Safety Audit</h2>
+                </div>
+
+                <!-- Just-in-Time DPDP Act Disclaimer -->
+                <div class="disclaimer-banner">
+                    <i class="fa-solid fa-gavel banner-icon"></i>
+                    <p><strong>DPDP Act Compliance:</strong> OfferShield processes data strictly for fraud detection. Please strip out any Personally Identifiable Information (PII) before pasting.</p>
+                </div>
+
+                <div class="panel-content">
+                    <!-- Input 1: Company Search -->
+                    <div class="form-group">
+                        <label for="companyNameInput">Company Name / CIN</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-building input-icon"></i>
+                            <input type="text" id="companyNameInput" placeholder="e.g. Zenlyte Solutions or L32102KA1945..." autocomplete="off">
+                            <button id="companySearchBtn" class="inner-btn" title="Quick Registry Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Input 2: Recruiter Email -->
+                    <div class="form-group">
+                        <label for="recruiterEmailInput">Recruiter Email (Optional)</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-envelope input-icon"></i>
+                            <input type="email" id="recruiterEmailInput" placeholder="e.g. hr@wipro.com or hr.wipro@gmail.com" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <!-- Input 3: Job Description Text -->
+                    <div class="form-group">
+                        <label for="jobTextInput">Job Description / Message Text</label>
+                        <textarea id="jobTextInput" placeholder="Paste the job description, WhatsApp message, or email text here to audit for scam patterns..."></textarea>
+                    </div>
+
+                    <!-- JIT File Upload Consent Checkbox -->
+                    <div class="file-consent-group">
+                        <div class="form-group">
+                            <label>Or Upload Document (Offer Letter / Contract)</label>
+                            <div class="upload-area" id="uploadArea">
+                                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                <span class="upload-text">Drag & drop or click to upload PDF/Image</span>
+                                <input type="file" id="fileInput" accept="image/*,application/pdf" style="display: none;">
+                            </div>
+                        </div>
+
+                        <label class="consent-checkbox-label">
+                            <input type="checkbox" id="consentCheckbox">
+                            <span class="checkbox-custom"></span>
+                            <span class="consent-text">I consent to OfferShield extracting text from this document for fraud analysis. I understand this document will be automatically deleted after 24 hours.</span>
+                        </label>
+                    </div>
+
+                    <!-- Run Audit Trigger Button -->
+                    <button id="runAuditBtn" class="primary-btn">
+                        <i class="fa-solid fa-circle-play"></i> Run Security Audit
+                    </button>
+                </div>
+            </section>
+
+            <!-- MIDDLE COLUMN: RESULTS DISPLAY -->
+            <section class="dashboard-panel results-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-square-poll-vertical icon-accent"></i>
+                    <h2>Audit Report</h2>
+                </div>
+
+                <div class="panel-content empty-results" id="emptyResultsView">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-shield-heart empty-icon"></i>
+                        <h3>Ready for Audit</h3>
+                        <p>Submit a company name or paste job posting details to generate a composite safety score report.</p>
+                    </div>
+                </div>
+
+                <div class="panel-content results-view" id="resultsView" style="display: none;">
+                    <!-- Circular Score Visualizer -->
+                    <div class="score-display-card">
+                        <div class="score-circle-wrapper">
+                            <svg class="score-svg" viewBox="0 0 100 100">
+                                <circle class="score-bg-circle" cx="50" cy="50" r="40"></circle>
+                                <circle class="score-progress-circle" id="scoreCircleProgress" cx="50" cy="50" r="40"></circle>
+                            </svg>
+                            <div class="score-text-wrapper">
+                                <span class="score-number" id="scoreNum">100</span>
+                                <span class="score-total">/100</span>
+                            </div>
+                        </div>
+                        <div class="risk-badge-wrapper">
+                            <span class="risk-badge" id="riskBadge">LOW RISK</span>
+                        </div>
+                    </div>
+
+                    <!-- Verified Company Metadata Card -->
+                    <div class="company-card" id="companyCard" style="display: none;">
+                        <h3><i class="fa-solid fa-circle-check verify-icon"></i> Verified Registry Details</h3>
+                        <div class="company-meta-grid">
+                            <div class="meta-item"><span class="meta-lbl">Legal Name:</span> <span id="metaName" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">CIN/ID:</span> <span id="metaCin" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Status:</span> <span id="metaStatus" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Incorporation Age:</span> <span id="metaInc" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Directors:</span> <span id="metaDirectors" class="meta-val">-</span></div>
+                            <div class="meta-item address-item"><span class="meta-lbl">Registered Address:</span> <span id="metaAddress" class="meta-val">-</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Reputation & Domain Metadata Card -->
+                    <div class="reputation-card" id="reputationCard" style="display: none;">
+                        <h3><i class="fa-solid fa-globe verify-icon"></i> External Trust Indicators</h3>
+                        <div class="reputation-meta-grid">
+                            <div class="meta-item"><span class="meta-lbl">Website Domain:</span> <span id="metaDomain" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Domain Age / Created:</span> <span id="metaDomainCreated" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Glassdoor Rating:</span> <span id="metaGlassdoor" class="meta-val">-</span></div>
+                            <div class="meta-item"><span class="meta-lbl">Trustpilot Rating:</span> <span id="metaTrustpilot" class="meta-val">-</span></div>
+                            <div class="meta-item footprint-item"><span class="meta-lbl">Google Search Footprint:</span> <span id="metaFootprint" class="meta-val">-</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Explanations & Deductions Breakdown -->
+                    <div class="deductions-card">
+                        <h3>Deduction Explanations</h3>
+                        <ul class="deductions-list" id="deductionsList">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: CHATBOT ASSISTANT -->
+            <section class="dashboard-panel chat-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-robot icon-accent"></i>
+                    <h2>Shieldy — Safety Assistant</h2>
+                </div>
+
+                <div class="panel-content chat-content">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-bubble bot-bubble">
+                            <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
+                            <div class="bubble-text">
+                                <p>Hello! I'm <strong>Shieldy</strong>, your OfferShield assistant. You can ask me questions about any company, job check, or job-safety guidelines. How can I help you today?</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <div class="chat-input-wrapper">
+                            <input type="text" id="chatInput" placeholder="Ask Shieldy a question..." autocomplete="off">
+                            <button id="sendChatBtn" class="chat-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Script loading -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
