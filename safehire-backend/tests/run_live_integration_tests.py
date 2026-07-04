@@ -52,6 +52,14 @@ async def test_live_ogd_registry():
     assert "wipro" in reg["name"].lower()
     assert reg["cin"] == wipro_cin
 
+    # Test ZaubaCorp search fallback with "Bisani Brothers Private Limited"
+    bisani_name = "Bisani Brothers Private Limited"
+    reg_bisani = await lookup_mca_registry(bisani_name)
+    print("Live Bisani Search Fallback registry details:", reg_bisani)
+    assert reg_bisani["source"] == "zaubacorp.com"
+    assert "bisani" in reg_bisani["name"].lower()
+    assert reg_bisani["cin"] == "U74999UP2017PTC097101"
+
 async def test_live_url_scraper():
     print("\n4. Testing Live URL Scraper...")
     url = "https://example.com"

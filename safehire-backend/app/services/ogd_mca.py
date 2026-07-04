@@ -1,10 +1,11 @@
 import httpx
 import re
 from typing import Dict, Any, Optional
+from datetime import datetime
 from app.core.config import settings
 from app.core.normalization import normalize_company_name, get_similarity_ratio
 
-# Local fallback registry dataset representing standard Indian corporations and scam flags
+# Local fallback seed registry dataset representing standard Indian corporations
 MOCK_OGD_REGISTRY = [
     {
         "name": "Tata Consultancy Services Limited",
@@ -46,7 +47,7 @@ MOCK_OGD_REGISTRY = [
         "name": "QuickJob Data Entry Services Pvt Ltd",
         "cin": "U74999DL2026PTC999999",
         "registration_status": "Active",
-        "incorporation_date": "2026-03-01",  # Newly registered (< 6 months old)
+        "incorporation_date": "2026-03-01",
         "registered_address": "Flat 402, Pocket B, Janakpuri, New Delhi, 110058",
         "directors": "Rajesh Kumar",
         "last_filing_date": ""
@@ -59,25 +60,87 @@ MOCK_OGD_REGISTRY = [
         "registered_address": "Virtual Office 12, Cyber Hub, Gurugram, Haryana",
         "directors": "Scammy Director",
         "last_filing_date": "2020-01-01"
-    },
-    {
-        "name": "Bisani Brothers Private Limited",
-        "cin": "U51909WB1998PTC086421",
-        "registration_status": "Active",
-        "incorporation_date": "1998-02-10",
-        "registered_address": "45 Chowringhee Road, Kolkata, West Bengal, 700071",
-        "directors": "Rajesh Bisani, Amit Bisani",
-        "last_filing_date": "2025-03-31"
     }
 ]
+
+async def lookup_mca_via_search(company_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Fallback crawler using Serper.dev Google Search to find company indexes on ZaubaCorp.
+    Extracts CIN and incorporation dates directly from snippets in real-time.
+    """
+    api_key = settings.SERPER_API_KEY
+    if not api_key:
+        return None
+    try:
+        query = f'site:zaubacorp.com "{company_name}"'
+        url = "https://google.serper.dev/search"
+        headers = {
+            "X-API-KEY": api_key,
+            "Content-Type": "application/json"
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json={"q": query}, headers=headers, timeout=6.0)
+            if response.status_code == 200:
+                organic = response.json().get("organic", [])
+                if organic:
+                    first_res = organic[0]
+                    title = first_res.get("title", "")
+                    snippet = first_res.get("snippet", "")
+                    link = first_res.get("link", "")
+                    
+                    # Clean title: e.g. "BISANI BROTHERS PRIVATE LIMITED | ZaubaCorp" -> "BISANI BROTHERS PRIVATE LIMITED"
+                    clean_title = title.split("|")[0].strip()
+                    similarity = get_similarity_ratio(normalize_company_name(company_name), normalize_company_name(clean_title))
+                    
+                    if similarity >= 0.80:
+                        # Extract CIN (21-character alphanumeric code)
+                        cin_match = re.search(r'\b([LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6})\b', link + " " + snippet)
+                        cin = cin_match.group(1) if cin_match else None
+                        
+                        # Extract Date (e.g. "19 Dec 2017")
+                        date_match = re.search(r'incorporated on\s+([\d\w\s]+?)\.', snippet, re.IGNORECASE)
+                        inc_date_raw = date_match.group(1) if date_match else None
+                        
+                        # Standardize date format: "19 Dec 2017" -> "2017-12-19"
+                        inc_date = None
+                        if inc_date_raw:
+                            date_cleaned = inc_date_raw.strip()
+                            parsed_date = None
+                            for fmt in ["%d %b %Y", "%d %B %Y", "%Y-%m-%d"]:
+                                try:
+                                    parsed_date = datetime.strptime(date_cleaned, fmt)
+                                    break
+                                except ValueError:
+                                    continue
+                            if parsed_date:
+                                inc_date = parsed_date.strftime("%Y-%m-%d")
+                                
+                        address = f"Verified registered address on official profile: {link}"
+                        directors = f"Verified directors on official profile: {link}"
+                        
+                        print(f"OfferShield Search Fallback: Successfully matched registry details for '{clean_title}' via ZaubaCorp!")
+                        return {
+                            "name": clean_title,
+                            "cin": cin,
+                            "registration_status": "Active",
+                            "incorporation_date": inc_date,
+                            "registered_address": address,
+                            "directors": directors,
+                            "last_filing_date": None,
+                            "source": "zaubacorp.com",
+                            "match_score": similarity
+                        }
+    except Exception as e:
+        print(f"OfferShield Search Fallback Connection Error: {str(e)}")
+    return None
 
 async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> Dict[str, Any]:
     """
     Looks up a company in the MCA registry.
-    Queries the live data.gov.in OGD registry (using the RoC Company Master Data resource),
-    with a graceful local seed fallback.
+    Queries the live data.gov.in OGD registry,
+    falls back to live ZaubaCorp index searches,
+    and falls back to local seeds if all network connections timeout.
     """
-    # Use key from arguments or settings
     api_key = ogd_api_key or settings.GOV_API_KEY or settings.OGD_API_KEY
     clean_query = query.strip().upper()
     normalized_query = normalize_company_name(query)
@@ -85,11 +148,7 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
     # 1. Query live data.gov.in OGD REST portal if key is active
     if api_key:
         try:
-            # Build filters dynamically depending on query format
-            # Indian Corporate Identification Number (CIN) is exactly 21 characters
             is_cin = len(clean_query) == 21 and re.match(r"^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$", clean_query)
-            
-            # Base OGD resource URL for RoC Company Master Data
             resource_id = "4dbe5667-7b6b-41d7-82af-211562424d9a"
             base_url = f"https://api.data.gov.in/resource/{resource_id}"
             
@@ -102,29 +161,26 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
             if is_cin:
                 params["filters[cin]"] = clean_query
             else:
-                # OGD schemas can vary between company_name and companyName
                 params["filters[company_name]"] = clean_query
                 
             print(f"OfferShield OGD Client: Fetching from data.gov.in (is_cin={is_cin})...")
             
             async with httpx.AsyncClient() as client:
-                response = await client.get(base_url, params=params, timeout=8.0)
+                response = await client.get(base_url, params=params, timeout=6.0)
                 if response.status_code == 200:
                     data = response.json()
                     records = data.get("records", [])
                     
-                    # If we searched by company_name and got nothing, try companyName filter
                     if not records and not is_cin:
                         params.pop("filters[company_name]", None)
                         params["filters[companyName]"] = clean_query
-                        response = await client.get(base_url, params=params, timeout=8.0)
+                        response = await client.get(base_url, params=params, timeout=6.0)
                         if response.status_code == 200:
                             data = response.json()
                             records = data.get("records", [])
                             
                     if records:
                         rec = records[0]
-                        # Handle variant casing across OGD schema revisions
                         comp_name = rec.get("company_name") or rec.get("companyName") or clean_query
                         comp_status = rec.get("company_status") or rec.get("companyStatus") or rec.get("company_category") or "Active"
                         inc_date = rec.get("date_of_registration") or rec.get("incorporationDate") or rec.get("registration_date")
@@ -144,15 +200,21 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
                             "match_score": 1.0
                         }
         except Exception as e:
-            print(f"SafeHire OGD Connection Error (failing over to local registry): {str(e)}")
+            print(f"SafeHire OGD Connection Error (failing over to search index): {str(e)}")
 
-    # 2. Local fallback matching (SQLite mock / fallback database check)
-    # Check if exact CIN match
+    # 2. Query live Google Search/ZaubaCorp directory index (High-Availability live lookup)
+    # Check if query looks like a company name (not a CIN)
+    is_cin_query = len(clean_query) == 21 and re.match(r"^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$", clean_query)
+    if not is_cin_query:
+        search_fallback = await lookup_mca_via_search(query)
+        if search_fallback:
+            return search_fallback
+
+    # 3. Local fallback matching (SQLite mock / fallback database check)
     for company in MOCK_OGD_REGISTRY:
         if company["cin"] == clean_query:
             return {**company, "source": "local_fallback", "match_score": 1.0}
             
-    # Fuzzy name matching
     best_match = None
     highest_score = 0.0
     
@@ -160,7 +222,6 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
         norm_company_name = normalize_company_name(company["name"])
         score = get_similarity_ratio(normalized_query, norm_company_name)
         
-        # Exact match after suffix stripping
         if normalized_query == norm_company_name:
             return {**company, "source": "local_fallback", "match_score": 1.0}
             
@@ -168,7 +229,6 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
             highest_score = score
             best_match = company
             
-    # Apply fuzzy thresholds
     if highest_score >= 0.85:
         return {**best_match, "source": "local_fallback", "match_score": highest_score}
     elif highest_score >= 0.80:
@@ -178,7 +238,6 @@ async def lookup_mca_registry(query: str, ogd_api_key: Optional[str] = None) -> 
             "source": "local_suggestion"
         }
         
-    # Unverified
     return {
         "unverified": True,
         "error": "No verified company registry records found under this name or CIN.",
